@@ -20,14 +20,31 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // ── API Proxy ─────────────────────────────────────────────────────────────
+  async rewrites() {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
+      },
+    ];
+  },
+
   // ── Image Optimization ────────────────────────────────────────────────────
   images: {
     formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+    ],
   },
 
   // ── TypeScript ────────────────────────────────────────────────────────────
   typescript: {
-    // Fail the build on type errors in production
     ignoreBuildErrors: false,
   },
 };
