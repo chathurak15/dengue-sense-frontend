@@ -137,5 +137,45 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans, sans-serif);
+    overflow-x: hidden;
   }
+}
+
+.leaflet-container {
+  background: #0b1220;
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: auto;
+}
+
+@keyframes ds-marker-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgb(239 68 68 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+  }
+}
+
+.ds-pulse-marker {
+  animation: ds-marker-pulse 1.8s ease-out infinite;
+}
+
+/* Invert OSM tiles in dark mode so the free raster basemap matches the UI.
+   Applied only to the tile pane so heat/markers stay true-colour. */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9)
+    saturate(0.7);
+}
+
+.leaflet-heatmap-layer {
+  pointer-events: none;
 }

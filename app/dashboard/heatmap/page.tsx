@@ -1,9 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Layers, Filter, Search, Locate } from "lucide-react";
+import {
+  Filter,
+  Layers,
+  Loader2,
+  Locate,
+  MapPin,
+  Navigation,
+  Search,
+} from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import {
   Card,
@@ -22,104 +31,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LiveMapStatus } from "@/components/dashboard/live-map-status";
+import { useLiveReports } from "@/hooks/use-live-reports";
+import {
+  clustersToHeatPoints,
+  reportsToHeatPoints,
+  resolveHeatData,
+  type ClusterRisk,
+  type HeatPoint,
+} from "@/lib/heatmap";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const HeatmapMap = dynamic(
+  () =>
+    import("@/components/dashboard/heatmap-map").then((m) => m.HeatmapMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Loading map…
+      </div>
+    ),
+  },
+);
 
-type ClusterRisk = "High" | "Medium" | "Low";
 type RiskFilter = "all" | "high" | "medium" | "low";
-
-interface Cluster {
-  id: string;
-  name: string;
-  top: string;
-  left: string;
-  size: number;
-  risk: ClusterRisk;
-  reports: number;
-}
-
-// ─── Static Data ──────────────────────────────────────────────────────────────
-
-const clusters: Cluster[] = [
-  {
-    id: "CL-01",
-    name: "Colombo 07 · Cinnamon Gardens",
-    top: "22%",
-    left: "28%",
-    size: 26,
-    risk: "High",
-    reports: 18,
-  },
-  {
-    id: "CL-02",
-    name: "Dehiwala · Galle Rd",
-    top: "38%",
-    left: "33%",
-    size: 22,
-    risk: "High",
-    reports: 14,
-  },
-  {
-    id: "CL-03",
-    name: "Negombo · Main St",
-    top: "18%",
-    left: "48%",
-    size: 18,
-    risk: "Medium",
-    reports: 9,
-  },
-  {
-    id: "CL-04",
-    name: "Kandy · Peradeniya",
-    top: "52%",
-    left: "62%",
-    size: 16,
-    risk: "Medium",
-    reports: 7,
-  },
-  {
-    id: "CL-05",
-    name: "Galle · Fort",
-    top: "78%",
-    left: "40%",
-    size: 12,
-    risk: "Low",
-    reports: 4,
-  },
-  {
-    id: "CL-06",
-    name: "Matara · Beach Rd",
-    top: "82%",
-    left: "55%",
-    size: 10,
-    risk: "Low",
-    reports: 3,
-  },
-  {
-    id: "CL-07",
-    name: "Jaffna · Nallur",
-    top: "8%",
-    left: "55%",
-    size: 14,
-    risk: "Medium",
-    reports: 6,
-  },
-  {
-    id: "CL-08",
-    name: "Batticaloa · Lake Rd",
-    top: "45%",
-    left: "82%",
-    size: 20,
-    risk: "High",
-    reports: 12,
-  },
-];
-
-// ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function RiskBadge({ risk }: { risk: ClusterRisk }) {
   if (risk === "High") return <Badge variant="destructive">High</Badge>;
-  if (risk === "Medium")
+  if (risk === "Medium") {
     return (
       <Badge
         variant="secondary"
@@ -128,80 +67,94 @@ function RiskBadge({ risk }: { risk: ClusterRisk }) {
         Medium
       </Badge>
     );
+  }
   return (
-    <Badge
-      variant="secondary"
-      className="bg-primary/10 text-primary hover:bg-primary/15"
-    >
+    <Badge variant="secondary" className="bg-primary/10 text-primary">
       Low
     </Badge>
   );
 }
 
-function clusterDotClass(risk: ClusterRisk, active: boolean): string {
-  const base =
-    "absolute -translate-x-1/2 -translate-y-1/2 rounded-full ring-8 transition-transform hover:scale-110 ";
-  const color =
-    risk === "High"
-      ? "bg-destructive ring-destructive/25" + (risk === "High" ? " animate-pulse" : "")
-      : risk === "Medium"
-      ? "bg-amber-500 ring-amber-500/25"
-      : "bg-primary ring-primary/25";
-  const activeRing = active ? " ring-[12px]" : "";
-  return base + color + activeRing;
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function HeatmapPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<Cluster>(clusters[0]);
+  const { reports, loading } = useLiveReports();
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
   const [query, setQuery] = useState("");
+  const [showHeat, setShowHeat] = useState(true);
+  const [showMarkers, setShowMarkers] = useState(true);
+
+  const heat = useMemo(() => {
+    if (loading && reports.length === 0) {
+      return { clusters: [], points: [] as HeatPoint[], usingDemo: false };
+    }
+    return resolveHeatData(reports);
+  }, [reports, loading]);
 
   const visible = useMemo(
     () =>
-      clusters.filter((c) => {
+      heat.clusters.filter((c) => {
         const riskOk =
-          riskFilter === "all" ||
-          c.risk.toLowerCase() === riskFilter;
-        const queryOk =
-          query.trim() === "" ||
-          c.name.toLowerCase().includes(query.toLowerCase());
+          riskFilter === "all" || c.risk.toLowerCase() === riskFilter;
+        const q = query.trim().toLowerCase();
+        const queryOk = q === "" || c.name.toLowerCase().includes(q);
         return riskOk && queryOk;
       }),
-    [riskFilter, query]
+    [heat.clusters, riskFilter, query],
   );
 
+  const visiblePoints = useMemo(() => {
+    if (heat.usingDemo) return clustersToHeatPoints(visible);
+    const ids = new Set(visible.flatMap((c) => c.reportIds));
+    return reportsToHeatPoints(reports.filter((r) => ids.has(r.id)));
+  }, [heat.usingDemo, visible, reports]);
+
+  const selected =
+    visible.find((c) => c.id === selectedId) ?? visible[0] ?? null;
   const totalReports = visible.reduce((sum, c) => sum + c.reports, 0);
+
+  const dispatchPhi = () => {
+    if (!selected) return;
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    toast.success(`Opening navigation to ${selected.name}`);
+  };
 
   return (
     <DashboardShell title="Spatial Heatmap">
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        {/* ── Map Panel ── */}
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Live PostGIS Heatmap</CardTitle>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                Live Spatial Heatmap
+                <LiveMapStatus usingDemo={heat.usingDemo} />
+              </CardTitle>
               <CardDescription>
-                Spatial clustering of verified reports — last 14 days
+                {heat.usingDemo
+                  ? "No reports in the database yet. Showing sample clusters across Sri Lanka."
+                  : "Incoming reports on Leaflet and OpenStreetMap. No map API cost."}
               </CardDescription>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search MOH area…"
-                  className="w-56 pl-9"
+                  className="w-full pl-9 sm:w-56"
                 />
               </div>
               <Select
                 value={riskFilter}
                 onValueChange={(v) => setRiskFilter(v as RiskFilter)}
               >
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-full sm:w-36">
                   <Filter className="mr-2 h-3.5 w-3.5" />
                   <SelectValue />
                 </SelectTrigger>
@@ -213,10 +166,19 @@ export default function HeatmapPage() {
                 </SelectContent>
               </Select>
               <Button
-                variant="outline"
+                variant={showHeat && showMarkers ? "outline" : "secondary"}
                 size="sm"
                 className="gap-1.5"
-                onClick={() => toast.info("Layer toggles coming soon")}
+                onClick={() => {
+                  if (showHeat && showMarkers) {
+                    setShowHeat(false);
+                    toast.info("Heat layer hidden");
+                    return;
+                  }
+                  setShowHeat(true);
+                  setShowMarkers(true);
+                  toast.success("Heat + cluster markers on");
+                }}
               >
                 <Layers className="h-4 w-4" /> Layers
               </Button>
@@ -224,36 +186,29 @@ export default function HeatmapPage() {
           </CardHeader>
 
           <CardContent>
-            <div className="relative h-[68vh] overflow-hidden rounded-md border border-border bg-muted/20">
-              {/* Grid overlay */}
-              <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(var(--color-border)_1px,transparent_1px),linear-gradient(90deg,var(--color-border)_1px,transparent_1px)] [background-size:32px_32px]" />
-              {/* Gradient glow */}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,color-mix(in_oklab,var(--color-primary)_18%,transparent),transparent_55%),radial-gradient(circle_at_70%_70%,color-mix(in_oklab,var(--color-destructive)_18%,transparent),transparent_55%)]" />
-
-              {/* Cluster Dots */}
-              {visible.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelected(c)}
-                  className={clusterDotClass(c.risk, c.id === selected.id)}
-                  style={{
-                    top: c.top,
-                    left: c.left,
-                    width: c.size,
-                    height: c.size,
-                  }}
-                  aria-label={c.name}
+            <div className="relative h-[55vh] min-h-[280px] overflow-hidden rounded-md border border-border bg-[#0b1220] sm:h-[68vh]">
+              {loading && heat.clusters.length === 0 ? (
+                <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading clusters…
+                </div>
+              ) : (
+                <HeatmapMap
+                  clusters={visible}
+                  points={visiblePoints}
+                  selectedId={selected?.id ?? null}
+                  showHeat={showHeat}
+                  showMarkers={showMarkers}
+                  fitKey={heat.usingDemo ? "demo" : "live"}
+                  onSelect={setSelectedId}
                 />
-              ))}
+              )}
 
-              {/* Bottom Stats Bar */}
-              <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border bg-background/85 px-3 py-2 text-xs backdrop-blur">
+              <div className="pointer-events-none absolute bottom-3 left-3 z-[500] flex items-center gap-2 rounded-md border border-border bg-background/85 px-3 py-2 text-xs backdrop-blur">
                 <MapPin className="h-3.5 w-3.5 text-primary" />
-                {visible.length} clusters · {totalReports} reports
+                {visible.length} clusters, {totalReports} reports
               </div>
 
-              {/* Legend */}
-              <div className="absolute right-3 top-3 flex flex-col gap-2 rounded-md border border-border bg-background/85 p-2 text-xs backdrop-blur">
+              <div className="pointer-events-none absolute right-3 top-3 z-[500] flex flex-col gap-2 rounded-md border border-border bg-background/85 p-2 text-xs backdrop-blur">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
                   High
@@ -271,50 +226,68 @@ export default function HeatmapPage() {
           </CardContent>
         </Card>
 
-        {/* ── Cluster Detail Panel ── */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Cluster Detail</CardTitle>
-            <CardDescription>{selected.id}</CardDescription>
+            <CardDescription>{selected?.id ?? "No cluster selected"}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Location</div>
-              <div className="font-medium">{selected.name}</div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-muted-foreground">Risk</div>
-                <div className="mt-1">
-                  <RiskBadge risk={selected.risk} />
+            {selected ? (
+              <>
+                <div>
+                  <div className="text-sm text-muted-foreground">Location</div>
+                  <div className="font-medium">{selected.name}</div>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
+                  </p>
                 </div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Reports</div>
-                <div className="text-2xl font-semibold">{selected.reports}</div>
-              </div>
-            </div>
-            <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              AI model attributes this cluster mostly to discarded containers
-              and stagnant drains following recent rainfall.
-            </div>
-            <div className="flex gap-2">
-              <Button
-                className="flex-1 gap-1.5"
-                onClick={() =>
-                  toast.success(`PHI dispatched to ${selected.name}`)
-                }
-              >
-                <Locate className="h-4 w-4" /> Dispatch PHI
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => router.push("/dashboard/alerts")}
-              >
-                View Reports
-              </Button>
-            </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Risk</div>
+                    <div className="mt-1">
+                      <RiskBadge risk={selected.risk} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Reports</div>
+                    <div className="text-2xl font-semibold">{selected.reports}</div>
+                  </div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  {selected.insight}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button className="flex-1 gap-1.5" onClick={dispatchPhi}>
+                    <Locate className="h-4 w-4" /> Dispatch PHI
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => router.push("/dashboard/alerts")}
+                  >
+                    View Reports
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full gap-1.5 text-muted-foreground"
+                  asChild
+                >
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Navigation className="h-4 w-4" /> Open in Google Maps
+                  </a>
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No clusters in the current filter. Submit citizen reports to
+                populate the heatmap.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
