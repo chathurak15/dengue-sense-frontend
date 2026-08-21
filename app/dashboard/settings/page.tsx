@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Save, Shield, Bell, User as UserIcon, Cpu } from "lucide-react";
+import { Loader2, Save, User as UserIcon } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import {
   Card,
@@ -14,9 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -24,396 +24,226 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/stores/app-store";
-import type { Settings } from "@/lib/types";
+import { apiUpdateUser } from "@/lib/api";
+import {
+  SRI_LANKA_DISTRICTS,
+  districtIdFromName,
+  districtNameFromId,
+} from "@/lib/districts";
 
-// ─── Sub-Components ───────────────────────────────────────────────────────────
-
-interface FieldProps {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-}
-
-function Field({ label, value, onChange, type = "text" }: FieldProps) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  );
-}
-
-interface SettingRowProps {
-  label: string;
-  hint: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}
-
-function SettingRow({ label, hint, checked, onChange }: SettingRowProps) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-border p-4">
-      <div>
-        <div className="font-medium">{label}</div>
-        <div className="text-sm text-muted-foreground">{hint}</div>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}
-
-// ─── Profile Form State ───────────────────────────────────────────────────────
-
-interface ProfileForm {
-  name: string;
-  badge: string;
-  email: string;
-  phone: string;
-}
-
-interface PasswordForm {
-  current: string;
-  next: string;
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const PHONE_PATTERN = /^\+?[0-9]{10,12}$/;
 
 export default function SettingsPage() {
   const user = useAppStore((s) => s.user);
-  const settings = useAppStore((s) => s.settings);
-  const updateSettings = useAppStore((s) => s.updateSettings);
+  const setUser = useAppStore((s) => s.setUser);
+  const hydrateUser = useAppStore((s) => s.hydrateUser);
 
-  const [profile, setProfile] = useState<ProfileForm>({
-    name: user?.name ?? "Jane Perera",
-    badge: user?.badge ?? "PHI-2025-0421",
-    email: user?.email ?? "jane.perera@health.gov.lk",
-    phone: "+94 71 234 5678",
-  });
+  const [fname, setFname] = useState("");
+  const [lname, setLname] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [image, setImage] = useState("");
+  const [districtId, setDistrictId] = useState("1");
+  const [saving, setSaving] = useState(false);
 
-  const [pw, setPw] = useState<PasswordForm>({ current: "", next: "" });
+  useEffect(() => {
+    hydrateUser();
+  }, [hydrateUser]);
 
-  /** Type-safe settings updater */
-  const set =
-    <K extends keyof Settings>(key: K) =>
-    (value: Settings[K]) =>
-      updateSettings({ [key]: value } as Partial<Settings>);
+  useEffect(() => {
+    if (!user) return;
+    setFname(user.fname || user.name.split(" ")[0] || "");
+    setLname(user.lname || user.name.split(" ").slice(1).join(" ") || "");
+    setPhoneNumber(user.phoneNumber ?? "");
+    setImage(user.image ?? "");
+    setDistrictId(String(districtIdFromName(user.districtName)));
+  }, [user]);
 
-  const saveProfile = () => toast.success("Profile updated");
-
-  const saveSecurity = () => {
-    if (pw.next && pw.next.length < 4) {
-      toast.error("New password must be at least 4 characters");
+  const saveProfile = async () => {
+    if (!user) {
+      toast.error("Please sign in again to update your profile");
       return;
     }
-    setPw({ current: "", next: "" });
-    toast.success("Security settings updated");
+    if (!fname.trim() || !lname.trim()) {
+      toast.error("First name and last name are required");
+      return;
+    }
+    const phone = phoneNumber.trim();
+    if (phone && !PHONE_PATTERN.test(phone)) {
+      toast.error("Phone must be 10-12 digits, optionally starting with +");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await apiUpdateUser({
+        email: user.email,
+        fname: fname.trim(),
+        lname: lname.trim(),
+        phoneNumber: phone || undefined,
+        image: image.trim() || undefined,
+        districtId: Number(districtId),
+      });
+
+      if (typeof result === "string" && result.toLowerCase().includes("not found")) {
+        toast.error(result);
+        return;
+      }
+
+      const nextName = `${fname.trim()} ${lname.trim()}`;
+      setUser({
+        ...user,
+        fname: fname.trim(),
+        lname: lname.trim(),
+        name: nextName,
+        phoneNumber: phone || null,
+        image: image.trim() || null,
+        districtName: districtNameFromId(Number(districtId)),
+        districtId: Number(districtId),
+        initials: `${fname.trim()[0] ?? ""}${lname.trim()[0] ?? ""}`
+          .slice(0, 2)
+          .toUpperCase(),
+      });
+      toast.success("Profile updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const saveAi = () => toast.success("AI engine settings saved");
-
   return (
-    <DashboardShell title="Settings">
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="profile" className="gap-1.5">
-            <UserIcon className="h-4 w-4" /> Profile
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-1.5">
-            <Bell className="h-4 w-4" /> Notifications
-          </TabsTrigger>
-          <TabsTrigger value="security" className="gap-1.5">
-            <Shield className="h-4 w-4" /> Security
-          </TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5">
-            <Cpu className="h-4 w-4" /> AI Engine
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Profile Tab ── */}
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>PHI Profile</CardTitle>
-              <CardDescription>
-                Information visible to your MOH supervisor
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarFallback className="bg-primary/10 text-primary text-lg">
-                    {user?.initials ?? "JP"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-1">
-                  <div className="font-medium">{profile.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {profile.badge} · Colombo MOH
-                  </div>
-                  <Button
+    <DashboardShell title="Profile">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserIcon className="h-5 w-5 text-primary" />
+            <CardTitle>Your profile</CardTitle>
+          </div>
+          <CardDescription>
+            These fields map to the backend user record. Email cannot be changed
+            because it identifies your account.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16">
+              {image ? <AvatarImage src={image} alt={user?.name} /> : null}
+              <AvatarFallback className="bg-primary/10 text-primary text-lg">
+                {user?.initials ?? "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-1">
+              <div className="font-medium">{user?.name ?? "-"}</div>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>{user?.email ?? "Not signed in"}</span>
+                {user?.role && <Badge variant="secondary">{user.role}</Badge>}
+                {user?.status && (
+                  <Badge
                     variant="outline"
-                    size="sm"
-                    onClick={() => toast.info("Photo upload coming soon")}
-                  >
-                    Change photo
-                  </Button>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field
-                  label="Full name"
-                  value={profile.name}
-                  onChange={(v) => setProfile({ ...profile, name: v })}
-                />
-                <Field
-                  label="Badge number"
-                  value={profile.badge}
-                  onChange={(v) => setProfile({ ...profile, badge: v })}
-                />
-                <Field
-                  label="Email"
-                  type="email"
-                  value={profile.email}
-                  onChange={(v) => setProfile({ ...profile, email: v })}
-                />
-                <Field
-                  label="Phone"
-                  value={profile.phone}
-                  onChange={(v) => setProfile({ ...profile, phone: v })}
-                />
-                <div className="space-y-2">
-                  <Label>MOH area</Label>
-                  <Select
-                    value={settings.mohArea}
-                    onValueChange={set("mohArea")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cmb">Colombo</SelectItem>
-                      <SelectItem value="gmp">Gampaha</SelectItem>
-                      <SelectItem value="kdy">Kandy</SelectItem>
-                      <SelectItem value="gll">Galle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Language</Label>
-                  <Select
-                    value={settings.language}
-                    onValueChange={set("language")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="si">සිංහල</SelectItem>
-                      <SelectItem value="ta">தமிழ்</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button className="gap-1.5" onClick={saveProfile}>
-                  <Save className="h-4 w-4" /> Save changes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Notifications Tab ── */}
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Choose when DengueSense alerts reach you
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <SettingRow
-                label="High-risk alerts"
-                hint="Instant push for any High AI-classified report in your area."
-                checked={settings.notifyHigh}
-                onChange={set("notifyHigh")}
-              />
-              <SettingRow
-                label="Daily digest"
-                hint="Summary email at 7:00 AM with new clusters and forecasts."
-                checked={settings.notifyDigest}
-                onChange={set("notifyDigest")}
-              />
-              <SettingRow
-                label="SMS fallback"
-                hint="Send SMS if push isn't delivered within 5 minutes."
-                checked={settings.notifySms}
-                onChange={set("notifySms")}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Security Tab ── */}
-        <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle>Security</CardTitle>
-              <CardDescription>
-                Manage authentication and active sessions
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Current password</Label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={pw.current}
-                    onChange={(e) => setPw({ ...pw, current: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>New password</Label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={pw.next}
-                    onChange={(e) => setPw({ ...pw, next: e.target.value })}
-                  />
-                </div>
-              </div>
-              <Separator />
-              <SettingRow
-                label="Two-factor authentication"
-                hint="Require an authenticator code at sign-in."
-                checked={settings.twoFa}
-                onChange={set("twoFa")}
-              />
-              <div>
-                <div className="font-medium">Active sessions</div>
-                <ul className="mt-3 space-y-2 text-sm">
-                  <li className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                    <div>
-                      <div className="font-medium">Chrome · macOS</div>
-                      <div className="text-xs text-muted-foreground">
-                        Colombo · this device
-                      </div>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      Active now
-                    </span>
-                  </li>
-                  <li className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                    <div>
-                      <div className="font-medium">Pixel 7 · Android</div>
-                      <div className="text-xs text-muted-foreground">
-                        Last active 2 days ago
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => toast.success("Session revoked")}
-                    >
-                      Sign out
-                    </Button>
-                  </li>
-                </ul>
-              </div>
-              <div className="flex justify-end">
-                <Button className="gap-1.5" onClick={saveSecurity}>
-                  <Save className="h-4 w-4" /> Update security
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── AI Engine Tab ── */}
-        <TabsContent value="ai">
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Engine</CardTitle>
-              <CardDescription>
-                Tune classifier sensitivity and dispatch behavior
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Risk threshold</Label>
-                  <Select
-                    value={settings.riskThreshold}
-                    onValueChange={(v) =>
-                      set("riskThreshold")(
-                        v as Settings["riskThreshold"]
-                      )
+                    className={
+                      user.status === "APPROVED"
+                        ? "border-emerald-500/40 text-emerald-600"
+                        : "border-amber-500/40 text-amber-600"
                     }
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sensitive">
-                        Sensitive (fewer missed)
-                      </SelectItem>
-                      <SelectItem value="balanced">Balanced</SelectItem>
-                      <SelectItem value="specific">
-                        Specific (fewer false alarms)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Forecast model</Label>
-                  <Select
-                    value={settings.forecastModel}
-                    onValueChange={(v) =>
-                      set("forecastModel")(v as Settings["forecastModel"])
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lstm-v3">LSTM v3 (default)</SelectItem>
-                      <SelectItem value="lstm-v2">LSTM v2</SelectItem>
-                      <SelectItem value="arima">ARIMA baseline</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {user.status}
+                  </Badge>
+                )}
               </div>
-              <Separator />
-              <SettingRow
-                label="Auto-dispatch on High risk"
-                hint="Automatically assign nearest PHI to High-risk verified reports."
-                checked={settings.autoDispatch}
-                onChange={set("autoDispatch")}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="fname">First name</Label>
+              <Input
+                id="fname"
+                value={fname}
+                onChange={(e) => setFname(e.target.value)}
+                required
+                autoComplete="given-name"
               />
-              <div className="flex justify-end">
-                <Button className="gap-1.5" onClick={saveAi}>
-                  <Save className="h-4 w-4" /> Save engine settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lname">Last name</Label>
+              <Input
+                id="lname"
+                value={lname}
+                onChange={(e) => setLname(e.target.value)}
+                required
+                autoComplete="family-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={user?.email ?? ""}
+                disabled
+                className="bg-muted/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+94771234567"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                autoComplete="tel"
+              />
+              <p className="text-xs text-muted-foreground">
+                10-12 digits, optional leading +
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="district">District</Label>
+              <Select value={districtId} onValueChange={setDistrictId}>
+                <SelectTrigger id="district">
+                  <SelectValue placeholder="Select district" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SRI_LANKA_DISTRICTS.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="image">Profile image URL</Label>
+              <Input
+                id="image"
+                type="url"
+                placeholder="https://…"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              className="w-full gap-1.5 sm:w-auto"
+              onClick={saveProfile}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save profile
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </DashboardShell>
   );
 }
