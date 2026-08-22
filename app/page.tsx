@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
-  title: "DengueSense LK — Proactive Dengue Surveillance for Sri Lanka",
+  title: "DengueSense LK: Proactive Dengue Surveillance for Sri Lanka",
   description:
     "AI-driven dengue surveillance for Sri Lanka. Citizen reporting, MobileNetV3 vector classification, and 4-week LSTM outbreak forecasting.",
 };
@@ -43,7 +43,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground">
       {/* ── Header ── */}
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Activity className="h-4 w-4" />
@@ -51,7 +51,7 @@ export default function LandingPage() {
             DengueSense <span className="text-primary">LK</span>
           </Link>
 
-          <nav className="flex items-center gap-2">
+          <nav className="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:gap-2">
             <ThemeToggle />
             <Link href="/login">
               <Button variant="ghost" size="sm">
@@ -67,13 +67,13 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <main>
-        <section className="mx-auto max-w-7xl px-6 py-24 lg:py-32">
+        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
           <div className="mx-auto max-w-3xl text-center">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               Real-time vector surveillance
             </div>
-            <h1 className="text-balance text-5xl font-semibold tracking-tight sm:text-6xl">
+            <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
               Proactive Dengue Surveillance for{" "}
               <span className="text-primary">Sri Lanka</span>
             </h1>
@@ -98,7 +98,7 @@ export default function LandingPage() {
 
         {/* ── Feature Cards ── */}
         <section className="border-t border-border bg-muted/30">
-          <div className="mx-auto grid max-w-7xl gap-8 px-6 py-20 md:grid-cols-3">
+          <div className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:px-6 sm:py-20 md:grid-cols-3 md:gap-8">
             {features.map((f) => (
               <div
                 key={f.title}
@@ -117,10 +117,10 @@ export default function LandingPage() {
 
       {/* ── Footer ── */}
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 text-sm text-muted-foreground">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:px-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            Ministry of Health · DengueSense LK
+            Ministry of Health, DengueSense LK
           </div>
           <span>© {new Date().getFullYear()} All rights reserved.</span>
         </div>

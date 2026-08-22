@@ -81,7 +81,7 @@ export default function ReportPage() {
       });
       setLoading(false);
       setDone({ id: row.id, risk: row.risk });
-      toast.success(`Report ${row.id} submitted · AI risk: ${row.risk}`);
+      toast.success(`Report ${row.id} submitted. AI risk: ${row.risk}`);
     }, 600);
   };
 
@@ -175,7 +175,7 @@ export default function ReportPage() {
               {/* Location */}
               <div className="space-y-2">
                 <Label htmlFor="loc">Location</Label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <div className="relative flex-1">
                     <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -187,7 +187,12 @@ export default function ReportPage() {
                       required
                     />
                   </div>
-                  <Button type="button" variant="outline" onClick={detectLocation}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={detectLocation}
+                  >
                     Detect
                   </Button>
                 </div>

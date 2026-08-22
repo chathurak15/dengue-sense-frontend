@@ -16,13 +16,13 @@ const inter = Inter({
 // ─── SEO Metadata ─────────────────────────────────────────────────────────────
 export const metadata: Metadata = {
   title: {
-    default: "DengueSense LK — Proactive Dengue Surveillance",
-    template: "%s — DengueSense LK",
+    default: "DengueSense LK: Proactive Dengue Surveillance",
+    template: "%s | DengueSense LK",
   },
   description:
     "AI-driven dengue surveillance for Sri Lanka. Citizen reporting, MobileNetV3 vector classification, and 4-week LSTM outbreak forecasting.",
   keywords: ["dengue", "surveillance", "Sri Lanka", "AI", "public health"],
-  authors: [{ name: "Ministry of Health · DengueSense LK" }],
+  authors: [{ name: "Ministry of Health, DengueSense LK" }],
   openGraph: {
     type: "website",
     title: "DengueSense LK",
