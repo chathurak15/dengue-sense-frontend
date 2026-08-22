@@ -16,6 +16,7 @@ import {
   Shield,
   Menu,
   FileSpreadsheet,
+  MapPinned,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["PHI", "MOH", "EPIDEMIOLOGIST", "VOLUNTEER"] },
   { href: "/dashboard/admin", label: "User Management", icon: Users, roles: ["ADMIN", "MOH"] },
+  { href: "/dashboard/districts", label: "Districts", icon: MapPinned, roles: ["ADMIN", "MOH", "EPIDEMIOLOGIST"] },
   { href: "/dashboard/cases", label: "Weekly Cases", icon: FileSpreadsheet, roles: ["PHI", "MOH", "ADMIN", "EPIDEMIOLOGIST"] },
   { href: "/dashboard/heatmap", label: "Heatmap", icon: Map, roles: ["PHI", "MOH", "ADMIN", "EPIDEMIOLOGIST"] },
   { href: "/dashboard/alerts", label: "Alerts", icon: Bell, roles: ["PHI", "MOH", "ADMIN", "EPIDEMIOLOGIST"] },
