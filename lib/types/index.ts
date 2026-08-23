@@ -34,6 +34,8 @@ export interface UserResponseDTO {
   districtId?: number | null;
   districtName: string | null;
   image: string | null;
+  telegramConnected?: boolean | null;
+  telegramConnectUrl?: string | null;
   createdAt: string;
 }
 
@@ -73,6 +75,14 @@ export interface User {
   districtId: number | null;
   districtName: string | null;
   image: string | null;
+  telegramConnected: boolean;
+  telegramConnectUrl: string | null;
+}
+
+export interface TelegramAlertStatusDTO {
+  connected: boolean;
+  connectUrl: string | null;
+  botUsername: string | null;
 }
 
 export interface UserUpdateDTO {
@@ -135,6 +145,23 @@ export interface ResolutionRequestDTO {
 
 export interface ReportStatusUpdateDTO {
   status: ReportStatus;
+}
+
+export type ClusterStatus = "ACTIVE" | "ALERTED" | "CLEARED" | "EXPIRED";
+
+export interface ClusterResponseDTO {
+  id: number;
+  districtId: number;
+  districtName: string;
+  status: ClusterStatus;
+  reportCount: number;
+  latitude: number | null;
+  longitude: number | null;
+  risk: "High" | "Medium" | "Low";
+  insight: string;
+  detectedAt: string;
+  alertedAt: string | null;
+  reports: ReportResponseDTO[];
 }
 
 export interface CsvImportResultDTO {

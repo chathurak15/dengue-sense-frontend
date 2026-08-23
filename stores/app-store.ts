@@ -34,6 +34,8 @@ function toFrontendUser(dto: UserResponseDTO): User {
     districtId: dto.districtId ?? null,
     districtName: dto.districtName,
     image: dto.image,
+    telegramConnected: Boolean(dto.telegramConnected),
+    telegramConnectUrl: dto.telegramConnectUrl ?? null,
   };
 }
 
