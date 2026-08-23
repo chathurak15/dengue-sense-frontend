@@ -12,6 +12,7 @@ import type {
   UserUpdateDTO,
   CsvImportResultDTO,
   DengueCaseSummaryDTO,
+  CitizenOutbreakSummaryDTO,
   WeeklyCaseRowDTO,
   PredictionRecordDTO,
   PredictionRunRequestDTO,
@@ -283,12 +284,23 @@ export async function apiGetDengueCaseSummary(
   );
 }
 
-// ─── LSTM Predictions ────────────────────────────────────────────────────────
+function publicApiUrl(path: string): string {
+  if (typeof window === "undefined") {
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    return `${base}${path}`;
+  }
+  return path;
+}
 
-/**
- * Latest stored LSTM prediction (optionally scoped to a district).
- * Returns null when no prediction has been generated yet (backend 404/204).
- */
+/** National snapshot for the landing page. Public — no session required. */
+export async function apiGetPublicOutbreakSummary(): Promise<CitizenOutbreakSummaryDTO> {
+  return request<CitizenOutbreakSummaryDTO>(
+    publicApiUrl("/api/v1/public/outbreak-summary"),
+    { next: { revalidate: 120 } } as RequestInit,
+  );
+}
+
+// ─── LSTM Predictions ────────────────────────────────────────────────────────
 export async function apiGetLatestPrediction(
   districtId?: number,
 ): Promise<PredictionRecordDTO | null> {
@@ -306,10 +318,6 @@ export async function apiGetLatestPrediction(
   }
 }
 
-/**
- * Trigger the AI service to run the LSTM model against the latest dengue
- * case records and persist a new prediction. Returns the created record.
- */
 export async function apiRunPrediction(
   dto: PredictionRunRequestDTO = {},
 ): Promise<PredictionRecordDTO> {
@@ -319,9 +327,6 @@ export async function apiRunPrediction(
   });
 }
 
-/**
- * Latest stored LSTM forecast for an RDHS. Returns null when none exists (404).
- */
 export async function apiGetLatestForecast(
   rdhsId: number,
 ): Promise<DistrictForecastResponseDTO | null> {

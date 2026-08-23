@@ -175,6 +175,21 @@ export interface DengueCaseSummaryDTO {
   districtLastWeekCases: number | null;
 }
 
+/** GET /api/v1/public/outbreak-summary — no authentication. */
+export interface CitizenOutbreakSummaryDTO {
+  weekStartDate: string | null;
+  weekEndDate: string | null;
+  year: number;
+  lastWeekCases: number;
+  previousWeekCases: number;
+  weekChangePercent: number | null;
+  yearCases: number;
+  hotspotCount: number;
+  nationalRisk: "HIGH" | "MEDIUM" | "LOW" | string;
+  banner: string | null;
+  highDistricts: string[];
+}
+
 // ─── LSTM Predictions ────────────────────────────────────────────────────────
 
 /** A single point on the forecast series (historical or predicted week). */

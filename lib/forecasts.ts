@@ -55,10 +55,19 @@ function addUtcWeeks(iso: string, weeks: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function forecastWeekDate(
+  targetWeekStart: string | null | undefined,
+  weekOffset: number,
+): string | null {
+  const key = dateKey(targetWeekStart);
+  if (!key) return null;
+  return addUtcWeeks(key, weekOffset);
+}
+
 function shortWeekLabel(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString("en-GB", {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
