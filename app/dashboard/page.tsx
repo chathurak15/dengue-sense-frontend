@@ -17,6 +17,7 @@ import {
   Loader2,
   Eye,
   ArrowRight,
+  Brain,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import {
@@ -46,27 +47,40 @@ import { useLiveReports } from "@/hooks/use-live-reports";
 import { LiveMapStatus } from "@/components/dashboard/live-map-status";
 import { DengueCaseKpis } from "@/components/dashboard/dengue-case-kpis";
 import { resolveHeatData } from "@/lib/heatmap";
-import { apiGetDengueCaseSummary, apiUpdateReportStatus } from "@/lib/api";
+import {
+  apiGetDengueCaseSummary,
+  apiGetLatestForecast,
+  apiGetWeeklyCases,
+  apiUpdateReportStatus,
+} from "@/lib/api";
 import { useAppStore } from "@/stores/app-store";
+import {
+  assignedRdhsId,
+  buildHistoryForecastSeries,
+} from "@/lib/forecasts";
 import type {
   DengueCaseSummaryDTO,
+  DistrictForecastResponseDTO,
   ReportResponseDTO,
   ReportStatus,
   RiskLabel,
+  WeeklyCaseRowDTO,
 } from "@/lib/types";
 
-const ForecastLineChart = dynamic(
+const ChartLoadingFallback = () => (
+  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+    Loading chart…
+  </div>
+);
+
+const ForecastAreaChart = dynamic(
   () =>
-    import("@/components/dashboard/charts/forecast-line-chart").then(
-      (m) => m.ForecastLineChart,
+    import("@/components/dashboard/charts/forecast-area-chart").then(
+      (m) => m.ForecastAreaChart,
     ),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Loading chart…
-      </div>
-    ),
+    loading: ChartLoadingFallback,
   },
 );
 
@@ -82,21 +96,6 @@ const HeatmapMap = dynamic(
     ),
   },
 );
-
-const chartData = [
-  { week: "W-8", historical: 120, predicted: null },
-  { week: "W-7", historical: 132, predicted: null },
-  { week: "W-6", historical: 145, predicted: null },
-  { week: "W-5", historical: 160, predicted: null },
-  { week: "W-4", historical: 180, predicted: null },
-  { week: "W-3", historical: 210, predicted: null },
-  { week: "W-2", historical: 245, predicted: null },
-  { week: "W-1", historical: 268, predicted: 268 },
-  { week: "W+1", historical: null, predicted: 295 },
-  { week: "W+2", historical: null, predicted: 332 },
-  { week: "W+3", historical: null, predicted: 360 },
-  { week: "W+4", historical: null, predicted: 348 },
-];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -195,10 +194,18 @@ export default function DashboardOverviewPage() {
     null,
   );
   const [caseSummaryLoading, setCaseSummaryLoading] = useState(true);
+  const [trendRows, setTrendRows] = useState<WeeklyCaseRowDTO[]>([]);
+  const [trendForecast, setTrendForecast] =
+    useState<DistrictForecastResponseDTO | null>(null);
+  const [trendLoading, setTrendLoading] = useState(true);
+
+  const rdhsId = assignedRdhsId(user);
+  const districtLabel =
+    user?.role === "PHI" ? user.districtName : user?.districtName ?? null;
+  const scopedToDistrict = user?.role === "PHI" || Boolean(user?.districtName);
 
   useEffect(() => {
     let cancelled = false;
-    setCaseSummaryLoading(true);
     apiGetDengueCaseSummary()
       .then((data) => {
         if (!cancelled) setCaseSummary(data);
@@ -213,6 +220,47 @@ export default function DashboardOverviewPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const isPhi = user.role === "PHI";
+    const districtFilter =
+      !isPhi && user.districtName ? user.districtName : undefined;
+    const assignedId = assignedRdhsId(user);
+    const fromDate =
+      isPhi || districtFilter
+        ? undefined
+        : new Date(Date.now() - 9 * 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10);
+
+    Promise.all([
+      apiGetWeeklyCases(0, isPhi || districtFilter ? 12 : 260, {
+        district: districtFilter,
+        fromDate,
+      }).catch(() => null),
+      assignedId != null
+        ? apiGetLatestForecast(assignedId).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([cases, forecast]) => {
+      if (cancelled) return;
+      setTrendRows(cases?.content ?? []);
+      setTrendForecast(forecast);
+      setTrendLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const trendData = useMemo(
+    () => buildHistoryForecastSeries(trendRows, trendForecast, 8),
+    [trendRows, trendForecast],
+  );
+
+  const hasTrend = trendData.length > 0;
 
   const heat = useMemo(() => {
     if (loading && reports.length === 0) {
@@ -344,15 +392,42 @@ export default function DashboardOverviewPage() {
       {/* ── Charts Row ── */}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Historical Cases vs 4-Week AI Prediction</CardTitle>
-            <CardDescription>
-              LSTM forecast for weekly confirmed dengue cases, national rollup
-            </CardDescription>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-primary" />
+                Historical Cases vs 4-Week AI Prediction
+              </CardTitle>
+              <CardDescription>
+                {scopedToDistrict && districtLabel
+                  ? `Last 8 weeks of confirmed dengue in ${districtLabel}, plus the coming 4-week LSTM forecast`
+                  : "Last 8 weeks of confirmed dengue (national rollup), plus the coming 4-week LSTM forecast"}
+              </CardDescription>
+            </div>
+            {rdhsId != null && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/dashboard/forecasts/${rdhsId}`}>
+                  Open forecast
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="h-56 w-full sm:h-80">
-              <ForecastLineChart data={chartData} />
+              {trendLoading ? (
+                <ChartLoadingFallback />
+              ) : hasTrend ? (
+                <ForecastAreaChart data={trendData} />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                  <Brain className="h-8 w-8" />
+                  <p>
+                    No weekly dengue records yet
+                    {districtLabel ? ` for ${districtLabel}` : ""}.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
