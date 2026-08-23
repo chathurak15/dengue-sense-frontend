@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -40,15 +40,11 @@ import {
 import { useAppStore } from "@/stores/app-store";
 import { apiGetDengueCaseSummary, apiGetWeeklyCases } from "@/lib/api";
 import { SRI_LANKA_RDHS } from "@/lib/districts";
+import { formatCount, formatIsoDate } from "@/lib/utils";
 import type { DengueCaseSummaryDTO, WeeklyCaseRowDTO } from "@/lib/types";
 
 const PAGE_SIZE = 26;
 const ALL_RDHS = "all";
-
-function formatCount(value: number | null | undefined): string {
-  if (value == null) return "—";
-  return value.toLocaleString();
-}
 
 export default function WeeklyCasesPage() {
   const user = useAppStore((s) => s.user);
@@ -115,6 +111,11 @@ export default function WeeklyCasesPage() {
     fetchRows();
   };
 
+  const maxCasesOnPage = useMemo(
+    () => Math.max(...rows.map((r) => r.weekCases ?? 0), 1),
+    [rows],
+  );
+
   return (
     <DashboardShell title="Weekly Cases">
       <DengueCaseKpis
@@ -125,7 +126,7 @@ export default function WeeklyCasesPage() {
 
       {canUpload ? <WeeklyCasesUploadCard onImported={refreshAll} /> : null}
 
-      <Card className="mt-6">
+      <Card className="mt-6 overflow-hidden">
         <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -134,8 +135,8 @@ export default function WeeklyCasesPage() {
             </CardTitle>
             <CardDescription>
               {isPhi
-                ? `Confirmed cases for ${user?.districtName ?? "your district"}, filterable by week date`
-                : "Filter by RDHS (district) and week start date"}
+                ? `Confirmed cases for ${user?.districtName ?? "your district"}, filterable by week`
+                : "Browse confirmed cases by RDHS and week. Same records the forecast model uses."}
             </CardDescription>
           </div>
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end lg:w-auto">
@@ -210,8 +211,12 @@ export default function WeeklyCasesPage() {
               </span>
             </div>
           ) : rows.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              No weekly case rows match these filters.
+            <div className="py-16 text-center">
+              <FileSpreadsheet className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No weeks match these filters</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Try another RDHS or widen the date range.
+              </p>
             </div>
           ) : (
             <>
@@ -220,38 +225,55 @@ export default function WeeklyCasesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>RDHS / district</TableHead>
-                      <TableHead>Week start</TableHead>
-                      <TableHead>Week end</TableHead>
+                      <TableHead>Week</TableHead>
                       <TableHead className="text-right">Week cases</TableHead>
                       <TableHead className="text-right">
-                        Cumulative cases
+                        Cumulative
                       </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-medium">
-                          {row.rdhsZone &&
-                          row.rdhsZone.toLowerCase() !==
-                            row.districtName.toLowerCase()
-                            ? row.rdhsZone
-                            : row.districtName}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {row.weekStartDate}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {row.weekEndDate}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCount(row.weekCases)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCount(row.cumulativeCases)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {rows.map((row) => {
+                      const pct = Math.round(
+                        ((row.weekCases ?? 0) / maxCasesOnPage) * 100,
+                      );
+                      const zone =
+                        row.rdhsZone &&
+                        row.rdhsZone.toLowerCase() !==
+                          row.districtName.toLowerCase()
+                          ? row.rdhsZone
+                          : row.districtName;
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell className="font-medium">{zone}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <span className="whitespace-nowrap">
+                              {formatIsoDate(row.weekStartDate)}
+                            </span>
+                            <span className="mx-1 text-border">–</span>
+                            <span className="whitespace-nowrap">
+                              {formatIsoDate(row.weekEndDate)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-muted sm:block">
+                                <div
+                                  className="h-full rounded-full bg-primary"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="min-w-[3rem] font-medium tabular-nums">
+                                {formatCount(row.weekCases)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {formatCount(row.cumulativeCases)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

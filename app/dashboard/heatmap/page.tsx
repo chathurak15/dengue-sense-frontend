@@ -284,8 +284,7 @@ export default function HeatmapPage() {
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No clusters in the current filter. Submit citizen reports to
-                populate the heatmap.
+                No clusters in the current filter.
               </p>
             )}
           </CardContent>

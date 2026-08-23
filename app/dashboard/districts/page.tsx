@@ -419,13 +419,13 @@ export default function DistrictsPage() {
             </div>
           )}
           {!loading && (
-            <p className="mt-4 text-xs text-muted-foreground">
+            <div className="mt-4 text-xs text-muted-foreground">
               Trend uses each district&apos;s last 4 weekly case records. An up
               trend is shown in red. Rising districts:{" "}
               <Badge variant="outline" className="border-red-500/40 text-red-600 dark:text-red-400">
                 {totals.rising}
               </Badge>
-            </p>
+            </div>
           )}
         </CardContent>
       </Card>
