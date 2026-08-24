@@ -10,6 +10,7 @@ import type {
   ResolutionRequestDTO,
   ResolutionResponseDTO,
   UserUpdateDTO,
+  TelegramAlertStatusDTO,
   CsvImportResultDTO,
   DengueCaseSummaryDTO,
   CitizenOutbreakSummaryDTO,
@@ -17,6 +18,7 @@ import type {
   PredictionRecordDTO,
   PredictionRunRequestDTO,
   DistrictForecastResponseDTO,
+  ClusterResponseDTO,
 } from "@/lib/types";
 
 class ApiError extends Error {
@@ -143,6 +145,16 @@ export async function apiUpdateUser(dto: UserUpdateDTO): Promise<string> {
   return request<string>("/api/v1/user/update", {
     method: "PUT",
     body: JSON.stringify(dto),
+  });
+}
+
+export async function apiGetTelegramAlerts(): Promise<TelegramAlertStatusDTO> {
+  return request<TelegramAlertStatusDTO>("/api/v1/user/telegram-alerts");
+}
+
+export async function apiSyncTelegramAlerts(): Promise<TelegramAlertStatusDTO> {
+  return request<TelegramAlertStatusDTO>("/api/v1/user/telegram-alerts/sync", {
+    method: "POST",
   });
 }
 
@@ -353,6 +365,23 @@ export async function apiRegenerateForecast(
   );
   if (res && typeof res === "object") return res;
   return null;
+}
+
+export async function apiGetClusters(
+  districtId?: number,
+): Promise<ClusterResponseDTO[]> {
+  const params = new URLSearchParams();
+  if (districtId) params.set("districtId", String(districtId));
+  const qs = params.toString();
+  return request<ClusterResponseDTO[]>(
+    `/api/v1/clusters${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export async function apiGetClusterById(
+  id: number,
+): Promise<ClusterResponseDTO> {
+  return request<ClusterResponseDTO>(`/api/v1/clusters/${id}`);
 }
 
 export { ApiError };
