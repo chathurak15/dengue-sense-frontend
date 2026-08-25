@@ -34,6 +34,25 @@ interface HeatmapMapProps {
   onSelect: (id: string) => void;
   compact?: boolean;
   fitKey?: string;
+  maxFitZoom?: number;
+}
+
+function clusterIcon(
+  cluster: HeatCluster,
+  selected: boolean,
+  compact: boolean,
+): L.DivIcon {
+  const color = RISK_COLOR[cluster.risk];
+  const size = compact ? (selected ? 32 : 24) : selected ? 44 : 36;
+  const label = cluster.id;
+  return L.divIcon({
+    className: "ds-cluster-marker",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `<div class="ds-cluster-pin${selected ? " is-selected" : ""}${
+      !selected && cluster.risk === "High" ? " is-high" : ""
+    }" style="--ds-color:${color}">${label}</div>`,
+  });
 }
 
 export function HeatmapMap({
@@ -45,14 +64,20 @@ export function HeatmapMap({
   onSelect,
   compact = false,
   fitKey,
+  maxFitZoom = 11,
 }: HeatmapMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<L.HeatLayer | null>(null);
   const onSelectRef = useRef(onSelect);
+  const clustersRef = useRef(clusters);
+  const compactRef = useRef(compact);
   const lastFitKeyRef = useRef<string>("");
+  const lastSelectedRef = useRef<string | null>(null);
   onSelectRef.current = onSelect;
+  clustersRef.current = clusters;
+  compactRef.current = compact;
 
   const [ready, setReady] = useState(false);
 
@@ -112,6 +137,37 @@ export function HeatmapMap({
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!ready || !map) return;
+
+    const onClick = (event: L.LeafletMouseEvent) => {
+      const list = clustersRef.current;
+      if (list.length === 0) return;
+      const hitPx = compactRef.current ? 36 : 80;
+      let bestId: string | null = null;
+      let bestPx = Infinity;
+      for (const cluster of list) {
+        const point = map.latLngToContainerPoint(
+          L.latLng(cluster.lat, cluster.lng),
+        );
+        const distance = point.distanceTo(event.containerPoint);
+        if (distance < bestPx) {
+          bestPx = distance;
+          bestId = cluster.id;
+        }
+      }
+      if (bestId && bestPx <= hitPx) {
+        onSelectRef.current(bestId);
+      }
+    };
+
+    map.on("click", onClick);
+    return () => {
+      map.off("click", onClick);
+    };
+  }, [ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     const group = layerRef.current;
     if (!ready || !map || !group) return;
 
@@ -138,6 +194,10 @@ export function HeatmapMap({
           gradient: HEAT_GRADIENT,
         }).addTo(map);
       }
+      const canvas = (
+        heatLayerRef.current as L.HeatLayer & { _canvas?: HTMLCanvasElement }
+      )._canvas;
+      if (canvas) canvas.style.pointerEvents = "none";
     } else if (heatLayerRef.current) {
       heatLayerRef.current.remove();
       heatLayerRef.current = null;
@@ -147,18 +207,16 @@ export function HeatmapMap({
 
     if (showMarkers) {
       clusters.forEach((c) => {
-        const color = RISK_COLOR[c.risk];
         const selected = c.id === selectedId;
-        const marker = L.circleMarker([c.lat, c.lng], {
-          radius: selected ? 11 : compact ? 5 : 7,
-          color,
-          weight: selected ? 3 : 2,
-          fillColor: color,
-          fillOpacity: 0.95,
-          className: c.risk === "High" ? "ds-pulse-marker" : undefined,
+        const marker = L.marker([c.lat, c.lng], {
+          icon: clusterIcon(c, selected, compact),
+          keyboard: true,
+          riseOnHover: true,
+          zIndexOffset: selected ? 1000 : 0,
+          title: `${c.id} · ${c.reports} reports`,
         });
         marker.on("click", () => onSelectRef.current(c.id));
-        marker.bindTooltip(`${c.name}, ${c.reports} reports`, {
+        marker.bindTooltip(`${c.id} · ${c.name} · ${c.reports} reports`, {
           direction: "top",
           opacity: 0.95,
         });
@@ -176,8 +234,20 @@ export function HeatmapMap({
     if (key === lastFitKeyRef.current) return;
     lastFitKeyRef.current = key;
     const bounds = L.latLngBounds(clusters.map((c) => [c.lat, c.lng]));
-    map.fitBounds(bounds.pad(0.35), { maxZoom: 11, animate: true });
-  }, [ready, clusters, compact, fitKey]);
+    map.fitBounds(bounds.pad(0.35), { maxZoom: maxFitZoom, animate: true });
+  }, [ready, clusters, compact, fitKey, maxFitZoom]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || compact || !selectedId) return;
+    const cluster = clusters.find((c) => c.id === selectedId);
+    if (!cluster) return;
+    if (lastSelectedRef.current === selectedId) return;
+    const isInitial = lastSelectedRef.current === null;
+    lastSelectedRef.current = selectedId;
+    if (isInitial) return;
+    map.panTo([cluster.lat, cluster.lng], { animate: true });
+  }, [ready, selectedId, clusters, compact]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }
