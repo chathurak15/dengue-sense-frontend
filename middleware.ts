@@ -31,8 +31,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── Guard /dashboard/* ──
-  if (pathname.startsWith("/dashboard")) {
+  // ── Guard /dashboard/* and /phi/* ──
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/phi")) {
     if (!authCookie) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
@@ -76,5 +76,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/register", "/dashboard/:path*", "/pending"],
+  matcher: ["/login", "/register", "/dashboard/:path*", "/phi/:path*", "/pending"],
 };
