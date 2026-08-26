@@ -43,10 +43,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useLiveClusters } from "@/hooks/use-live-clusters";
 import { useLiveReports } from "@/hooks/use-live-reports";
 import { LiveMapStatus } from "@/components/dashboard/live-map-status";
 import { DengueCaseKpis } from "@/components/dashboard/dengue-case-kpis";
-import { resolveHeatData } from "@/lib/heatmap";
+import {
+  clusterHref,
+  heatPointsForClusters,
+  toHeatClusters,
+} from "@/lib/heatmap";
 import {
   apiGetDengueCaseSummary,
   apiGetLatestForecast,
@@ -186,6 +191,7 @@ export default function DashboardOverviewPage() {
   const router = useRouter();
   const user = useAppStore((s) => s.user);
   const { reports, totalItems, loading, refetch, isAdmin } = useLiveReports();
+  const { clusters: clusterDtos, loading: clustersLoading } = useLiveClusters();
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(
     null,
@@ -262,12 +268,14 @@ export default function DashboardOverviewPage() {
 
   const hasTrend = trendData.length > 0;
 
-  const heat = useMemo(() => {
-    if (loading && reports.length === 0) {
-      return { clusters: [], points: [], usingDemo: false };
-    }
-    return resolveHeatData(reports);
-  }, [reports, loading]);
+  const heatClusters = useMemo(
+    () => toHeatClusters(clusterDtos),
+    [clusterDtos],
+  );
+  const heatPoints = useMemo(
+    () => heatPointsForClusters(clusterDtos, heatClusters),
+    [clusterDtos, heatClusters],
+  );
 
   const counts = useMemo(() => {
     const c = { pending: 0, dispatched: 0, resolved: 0, highRisk: 0 };
@@ -437,11 +445,11 @@ export default function DashboardOverviewPage() {
             <div className="min-w-0">
               <CardTitle>Live Spatial Heatmap</CardTitle>
               <CardDescription>
-                Incoming reports on Leaflet and OpenStreetMap. No map API cost.
+                Detected clusters from the server.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <LiveMapStatus usingDemo={heat.usingDemo} />
+              <LiveMapStatus usingDemo={false} />
               <Button
                 variant="outline"
                 size="sm"
@@ -453,19 +461,23 @@ export default function DashboardOverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="relative h-56 w-full overflow-hidden rounded-md border border-border bg-[#0b1220] sm:h-72 lg:h-80">
-              {loading && heat.clusters.length === 0 ? (
+              {clustersLoading && heatClusters.length === 0 ? (
                 <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading map…
                 </div>
               ) : (
                 <HeatmapMap
-                  clusters={heat.clusters}
-                  points={heat.points}
+                  clusters={heatClusters}
+                  points={heatPoints}
                   selectedId={selectedClusterId}
                   showHeat
                   showMarkers
                   compact
-                  onSelect={setSelectedClusterId}
+                  onSelect={(id) => {
+                    setSelectedClusterId(id);
+                    const cluster = heatClusters.find((c) => c.id === id);
+                    if (cluster) router.push(clusterHref(cluster));
+                  }}
                 />
               )}
               <div className="pointer-events-none absolute bottom-3 left-3 z-[500] flex items-center gap-2 rounded-md bg-background/80 px-2 py-1 text-xs backdrop-blur">

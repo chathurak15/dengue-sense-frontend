@@ -32,13 +32,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LiveMapStatus } from "@/components/dashboard/live-map-status";
-import { useLiveReports } from "@/hooks/use-live-reports";
+import { useLiveClusters } from "@/hooks/use-live-clusters";
+import { cn } from "@/lib/utils";
 import {
-  clustersToHeatPoints,
-  reportsToHeatPoints,
-  resolveHeatData,
+  clusterHref,
+  heatPointsForClusters,
+  toHeatClusters,
   type ClusterRisk,
-  type HeatPoint,
 } from "@/lib/heatmap";
 
 const HeatmapMap = dynamic(
@@ -77,7 +77,7 @@ function RiskBadge({ risk }: { risk: ClusterRisk }) {
 
 export default function HeatmapPage() {
   const router = useRouter();
-  const { reports, loading } = useLiveReports();
+  const { clusters: clusterDtos, loading, error } = useLiveClusters();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
@@ -85,34 +85,35 @@ export default function HeatmapPage() {
   const [showHeat, setShowHeat] = useState(true);
   const [showMarkers, setShowMarkers] = useState(true);
 
-  const heat = useMemo(() => {
-    if (loading && reports.length === 0) {
-      return { clusters: [], points: [] as HeatPoint[], usingDemo: false };
-    }
-    return resolveHeatData(reports);
-  }, [reports, loading]);
+  const clusters = useMemo(() => toHeatClusters(clusterDtos), [clusterDtos]);
 
   const visible = useMemo(
     () =>
-      heat.clusters.filter((c) => {
+      clusters.filter((c) => {
         const riskOk =
           riskFilter === "all" || c.risk.toLowerCase() === riskFilter;
         const q = query.trim().toLowerCase();
         const queryOk = q === "" || c.name.toLowerCase().includes(q);
         return riskOk && queryOk;
       }),
-    [heat.clusters, riskFilter, query],
+    [clusters, riskFilter, query],
   );
 
-  const visiblePoints = useMemo(() => {
-    if (heat.usingDemo) return clustersToHeatPoints(visible);
-    const ids = new Set(visible.flatMap((c) => c.reportIds));
-    return reportsToHeatPoints(reports.filter((r) => ids.has(r.id)));
-  }, [heat.usingDemo, visible, reports]);
+  const visiblePoints = useMemo(
+    () => heatPointsForClusters(clusterDtos, visible),
+    [clusterDtos, visible],
+  );
 
   const selected =
     visible.find((c) => c.id === selectedId) ?? visible[0] ?? null;
   const totalReports = visible.reduce((sum, c) => sum + c.reports, 0);
+
+  const openCluster = (id: string) => {
+    const cluster = visible.find((c) => c.id === id);
+    if (!cluster) return;
+    setSelectedId(id);
+    router.push(clusterHref(cluster));
+  };
 
   const dispatchPhi = () => {
     if (!selected) return;
@@ -132,12 +133,12 @@ export default function HeatmapPage() {
             <div>
               <CardTitle className="flex flex-wrap items-center gap-2">
                 Live Spatial Heatmap
-                <LiveMapStatus usingDemo={heat.usingDemo} />
+                <LiveMapStatus usingDemo={false} />
               </CardTitle>
               <CardDescription>
-                {heat.usingDemo
-                  ? "No reports in the database yet. Showing sample clusters across Sri Lanka."
-                  : "Incoming reports on Leaflet and OpenStreetMap. No map API cost."}
+                {error
+                  ? error
+                  : "Detected clusters from the server. Click a cluster for its reports."}
               </CardDescription>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -187,7 +188,7 @@ export default function HeatmapPage() {
 
           <CardContent>
             <div className="relative h-[55vh] min-h-[280px] overflow-hidden rounded-md border border-border bg-[#0b1220] sm:h-[68vh]">
-              {loading && heat.clusters.length === 0 ? (
+              {loading && clusters.length === 0 ? (
                 <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading clusters…
                 </div>
@@ -198,8 +199,8 @@ export default function HeatmapPage() {
                   selectedId={selected?.id ?? null}
                   showHeat={showHeat}
                   showMarkers={showMarkers}
-                  fitKey={heat.usingDemo ? "demo" : "live"}
-                  onSelect={setSelectedId}
+                  fitKey="live"
+                  onSelect={openCluster}
                 />
               )}
 
@@ -229,9 +230,44 @@ export default function HeatmapPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Cluster Detail</CardTitle>
-            <CardDescription>{selected?.id ?? "No cluster selected"}</CardDescription>
+            <CardDescription>{selected ? `#${selected.id}` : "No cluster selected"}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {visible.length > 0 ? (
+              <div className="space-y-1">
+                {visible.map((cluster) => {
+                  const isActive = selected?.id === cluster.id;
+                  return (
+                    <button
+                      key={cluster.id}
+                      type="button"
+                      onClick={() => openCluster(cluster.id)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
+                        isActive
+                          ? "border-primary bg-primary/10"
+                          : "border-border hover:bg-muted/50",
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">
+                          #{cluster.id}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {cluster.name}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <RiskBadge risk={cluster.risk} />
+                        <span className="tabular-nums text-sm font-semibold">
+                          {cluster.reports}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
             {selected ? (
               <>
                 <div>
@@ -263,9 +299,9 @@ export default function HeatmapPage() {
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={() => router.push("/dashboard/alerts")}
+                    onClick={() => selected && openCluster(selected.id)}
                   >
-                    View Reports
+                    Open cluster
                   </Button>
                 </div>
                 <Button
