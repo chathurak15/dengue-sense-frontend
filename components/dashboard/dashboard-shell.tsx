@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { apiLogout } from "@/lib/api";
 import { assignedRdhsId } from "@/lib/forecasts";
+import { TelegramAlertsPrompt } from "@/components/dashboard/telegram-alerts-prompt";
 
 // ─── Nav Definition ───────────────────────────────────────────────────────────
 
@@ -122,9 +123,12 @@ export function DashboardShell({ title, children }: DashboardShellProps) {
     const active =
       item.label === "Forecasts"
         ? pathname.startsWith("/dashboard/forecasts")
-        : item.href === "/dashboard"
-          ? pathname === "/dashboard"
-          : pathname.startsWith(item.href);
+        : item.href === "/dashboard/heatmap"
+          ? pathname.startsWith("/dashboard/heatmap") ||
+            pathname.startsWith("/phi/clusters")
+          : item.href === "/dashboard"
+            ? pathname === "/dashboard"
+            : pathname.startsWith(item.href);
 
     return (
       <Link
@@ -263,7 +267,10 @@ export function DashboardShell({ title, children }: DashboardShellProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
+          <TelegramAlertsPrompt />
+          {children}
+        </main>
       </div>
     </div>
   );

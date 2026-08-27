@@ -80,7 +80,7 @@ export default function RegisterPage() {
       });
 
       toast.success(
-        "Registration submitted! Your account is pending admin approval.",
+        "Account created. After approval, sign in and tap Enable Telegram alerts — no codes to type.",
       );
       router.push("/login");
     } catch (err) {

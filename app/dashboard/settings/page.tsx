@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { useAppStore } from "@/stores/app-store";
 import { apiUpdateUser } from "@/lib/api";
+import { TelegramAlertsEnable } from "@/components/dashboard/telegram-alerts-enable";
 import {
   SRI_LANKA_DISTRICTS,
   districtIdFromName,
@@ -114,6 +115,7 @@ export default function SettingsPage() {
 
   return (
     <DashboardShell title="Profile">
+      <div className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -244,6 +246,21 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {user?.role === "PHI" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Outbreak alerts</CardTitle>
+            <CardDescription>
+              Telegram messages when a dengue hotspot is found in your district.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TelegramAlertsEnable />
+          </CardContent>
+        </Card>
+      )}
+      </div>
     </DashboardShell>
   );
 }
