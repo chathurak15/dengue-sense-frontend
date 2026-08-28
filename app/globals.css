@@ -211,3 +211,62 @@
 .leaflet-heatmap-layer {
   pointer-events: none;
 }
+
+@keyframes ds-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.ds-float {
+  animation: ds-float 5.5s ease-in-out infinite;
+}
+
+.ds-phone-glow {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.18),
+    0 28px 70px -24px rgb(12 18 14 / 0.55),
+    0 0 80px -20px rgb(122 35 167 / 0.45);
+}
+
+@keyframes ds-kenburns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
+.ds-kenburns {
+  animation: ds-kenburns 2.8s ease-out forwards;
+}
+
+@keyframes ds-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ds-marquee-track {
+  animation: ds-marquee 55s linear infinite;
+}
+
+.ds-marquee:hover .ds-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-float,
+  .ds-marquee-track,
+  .ds-kenburns {
+    animation: none;
+  }
+}
