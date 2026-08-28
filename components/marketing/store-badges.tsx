@@ -99,10 +99,10 @@ export function StoreBadges({ className }: { className?: string }) {
           <DialogHeader className="items-center text-center sm:text-center">
             <Image
               src={APP_ICON_SRC}
-              alt=""
-              width={64}
-              height={64}
-              className="mb-2 h-16 w-16 rounded-full ring-1 ring-white/20"
+              alt="DengueSense LK"
+              width={72}
+              height={72}
+              className="mb-2 h-[72px] w-[72px] rounded-2xl object-cover ring-1 ring-black/10"
             />
             <p className="inline-flex items-center gap-1.5 rounded-full bg-[#7A23A7]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#7A23A7]">
               <Smartphone className="h-3 w-3" />

@@ -1,6 +1,6 @@
 export const APP_PROMO_VIDEO_SRC = "/app-promo/preview.mp4";
 export const APP_PROMO_VIDEO_WEBM_SRC = "/app-promo/preview.webm";
-export const APP_ICON_SRC = "/app-promo/app-icon.png";
+export const APP_ICON_SRC = "/app-promo/logo.png";
 
 export const PLAY_STORE_URL =
   process.env.NEXT_PUBLIC_PLAY_STORE_URL ??

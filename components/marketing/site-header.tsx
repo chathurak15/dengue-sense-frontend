@@ -16,7 +16,7 @@ export function SiteHeader({ active }: { active?: "home" | "app" }) {
             alt=""
             width={40}
             height={40}
-            className="h-10 w-10 shrink-0 rounded-full shadow-sm ring-1 ring-black/10 sm:h-11 sm:w-11"
+            className="h-10 w-10 shrink-0 rounded-[10px] shadow-sm ring-1 ring-black/10 sm:h-11 sm:w-11"
             loading="eager"
           />
           <span className="truncate">

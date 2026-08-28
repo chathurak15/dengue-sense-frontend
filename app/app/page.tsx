@@ -206,10 +206,10 @@ export default function AppPromoPage() {
             />
             <Image
               src={APP_ICON_SRC}
-              alt=""
-              width={80}
-              height={80}
-              className="mx-auto h-16 w-16 rounded-full ring-2 ring-white/20 sm:h-20 sm:w-20"
+              alt="DengueSense LK"
+              width={160}
+              height={160}
+              className="mx-auto h-28 w-28 rounded-3xl object-cover shadow-lg ring-2 ring-white/20 sm:h-36 sm:w-36"
             />
             <h2 className="mt-5 text-2xl font-semibold tracking-tight sm:mt-6 sm:text-4xl">
               Get DengueSense LK
