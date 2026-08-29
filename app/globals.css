@@ -137,5 +137,77 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans, sans-serif);
+    overflow-x: hidden;
   }
+}
+
+.leaflet-container {
+  background: #0b1220;
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: auto;
+}
+
+@keyframes ds-marker-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgb(239 68 68 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+  }
+}
+
+.ds-pulse-marker {
+  animation: ds-marker-pulse 1.8s ease-out infinite;
+}
+
+.ds-cluster-marker {
+  background: none !important;
+  border: none !important;
+}
+
+.ds-cluster-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  border: 2px solid var(--ds-color);
+  background: color-mix(in srgb, var(--ds-color) 88%, black);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
+}
+
+.ds-cluster-pin.is-selected {
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.9),
+    0 0 0 6px var(--ds-color);
+}
+
+.ds-cluster-pin.is-high {
+  animation: ds-marker-pulse 1.8s ease-out infinite;
+}
+
+/* Invert OSM tiles in dark mode so the free raster basemap matches the UI.
+   Applied only to the tile pane so heat/markers stay true-colour. */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9)
+    saturate(0.7);
+}
+
+.leaflet-heatmap-layer {
+  pointer-events: none;
 }

@@ -1,24 +1,82 @@
 import { create } from "zustand";
-import type { AlertRow, Risk, Settings, Status, User } from "@/lib/types";
+import type {
+  AlertRow,
+  Risk,
+  Settings,
+  Status,
+  User,
+  UserResponseDTO,
+  RoleType,
+  UserStatus,
+} from "@/lib/types";
 
-// Re-export types for backward-compat imports across the app
 export type { AlertRow, Risk, Settings, Status, User };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function toFrontendUser(dto: UserResponseDTO): User {
+  const fname = dto.fname ?? "";
+  const lname = dto.lname ?? "";
+  const name = `${fname} ${lname}`.trim() || dto.email;
+  const initials = `${fname[0] ?? ""}${lname[0] ?? dto.email[0] ?? "U"}`
+    .slice(0, 2)
+    .toUpperCase();
+  return {
+    id: dto.id,
+    fname,
+    lname,
+    name,
+    email: dto.email,
+    phoneNumber: dto.phoneNumber,
+    initials,
+    role: dto.role,
+    status: dto.status,
+    districtId: dto.districtId ?? null,
+    districtName: dto.districtName,
+    image: dto.image,
+    telegramConnected: Boolean(dto.telegramConnected),
+    telegramConnectUrl: dto.telegramConnectUrl ?? null,
+  };
+}
+
+const USER_STORAGE_KEY = "ds_user";
+
+function persistUser(user: User | null) {
+  if (typeof window === "undefined") return;
+  if (user) {
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_STORAGE_KEY);
+  }
+}
+
+function loadStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Encode user auth info in a cookie readable by middleware */
+function setAuthCookie(role: RoleType, status: UserStatus) {
+  document.cookie = `ds_auth=${role}:${status}; path=/; max-age=86400; SameSite=Lax`;
+}
+
+function clearAuthCookie() {
+  document.cookie = "ds_auth=; path=/; max-age=0; SameSite=Lax";
+}
 
 // ─── Store Shape ─────────────────────────────────────────────────────────────
 
 interface AppState {
-  // ── Auth ──────────────────────────────────────────────────────────────────
   user: User | null;
-  login: (email: string, password: string) => { ok: boolean; error?: string };
-  register: (data: {
-    name: string;
-    email: string;
-    badge: string;
-    password: string;
-  }) => { ok: boolean; error?: string };
+  setUser: (user: User | null) => void;
+  hydrateUser: () => void;
   logout: () => void;
 
-  // ── Alerts ────────────────────────────────────────────────────────────────
   alerts: AlertRow[];
   addReport: (input: {
     loc: string;
@@ -27,7 +85,6 @@ interface AppState {
   }) => AlertRow;
   setStatus: (id: string, status: Status) => void;
 
-  // ── Settings ──────────────────────────────────────────────────────────────
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => void;
 }
@@ -37,7 +94,7 @@ interface AppState {
 const seedAlerts: AlertRow[] = [
   {
     id: "RPT-2451",
-    loc: "Colombo 07 · Cinnamon Gardens",
+    loc: "Colombo 07, Cinnamon Gardens",
     reporter: "Citizen #8821",
     risk: "High",
     status: "Pending",
@@ -47,7 +104,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2450",
-    loc: "Dehiwala · Galle Rd",
+    loc: "Dehiwala, Galle Rd",
     reporter: "Citizen #8810",
     risk: "High",
     status: "Pending",
@@ -57,7 +114,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2449",
-    loc: "Kandy · Peradeniya",
+    loc: "Kandy, Peradeniya",
     reporter: "PHI J. Silva",
     risk: "Low",
     status: "Dispatched",
@@ -67,7 +124,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2448",
-    loc: "Negombo · Main St",
+    loc: "Negombo, Main St",
     reporter: "Citizen #8799",
     risk: "High",
     status: "Dispatched",
@@ -77,7 +134,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2447",
-    loc: "Galle · Fort",
+    loc: "Galle, Fort",
     reporter: "Citizen #8770",
     risk: "Low",
     status: "Resolved",
@@ -87,7 +144,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2446",
-    loc: "Batticaloa · Lake Rd",
+    loc: "Batticaloa, Lake Rd",
     reporter: "PHI R. Kumar",
     risk: "Medium",
     status: "Pending",
@@ -97,7 +154,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2445",
-    loc: "Jaffna · Nallur",
+    loc: "Jaffna, Nallur",
     reporter: "Citizen #8744",
     risk: "Medium",
     status: "Resolved",
@@ -107,7 +164,7 @@ const seedAlerts: AlertRow[] = [
   },
   {
     id: "RPT-2444",
-    loc: "Matara · Beach Rd",
+    loc: "Matara, Beach Rd",
     reporter: "Citizen #8731",
     risk: "Low",
     status: "Resolved",
@@ -129,9 +186,6 @@ const defaultSettings: Settings = {
   language: "en",
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Mock risk classification based on keyword heuristics. */
 function classifyRisk(text: string): Risk {
   const t = text.toLowerCase();
   if (/(tire|tyre|drain|tank|stagnant|sewer|construction)/.test(t))
@@ -147,54 +201,24 @@ let counter = 2452;
 export const useAppStore = create<AppState>((set) => ({
   user: null,
 
-  login: (email, password) => {
-    if (!email.includes("@") || password.length < 4) {
-      return {
-        ok: false,
-        error: "Enter a valid email and password (min 4 chars).",
-      };
+  setUser: (user) => {
+    if (user) {
+      setAuthCookie(user.role, user.status);
     }
-    const name = email
-      .split("@")[0]
-      .replace(/[._]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-    const initials = name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-    set({ user: { name, email, badge: "PHI-2025-0421", initials } });
-    return { ok: true };
+    persistUser(user);
+    set({ user });
   },
 
-  register: (data) => {
-    if (
-      !data.email.includes("@") ||
-      data.password.length < 4 ||
-      !data.name ||
-      !data.badge
-    ) {
-      return { ok: false, error: "Please fill all fields with valid values." };
-    }
-    const initials = data.name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-    set({
-      user: {
-        name: data.name,
-        email: data.email,
-        badge: data.badge,
-        initials,
-      },
-    });
-    return { ok: true };
+  hydrateUser: () => {
+    const stored = loadStoredUser();
+    if (stored) set({ user: stored });
   },
 
-  logout: () => set({ user: null }),
+  logout: () => {
+    clearAuthCookie();
+    persistUser(null);
+    set({ user: null });
+  },
 
   alerts: seedAlerts,
 
@@ -226,3 +250,5 @@ export const useAppStore = create<AppState>((set) => ({
   updateSettings: (patch) =>
     set((s) => ({ settings: { ...s.settings, ...patch } })),
 }));
+
+export { toFrontendUser };
