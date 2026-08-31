@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, ArrowRight, Brain, FileSpreadsheet, MapPinned, ShieldCheck } from "lucide-react";
+import { ArrowRight, Brain, FileSpreadsheet, MapPinned } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { NationalOutlook } from "@/components/home/national-outlook";
+import { SiteHeader } from "@/components/marketing/site-header";
+import { SiteFooter } from "@/components/marketing/site-footer";
+import { HomeAppTeaser } from "@/components/app-promo/home-teaser";
 import { apiGetPublicOutbreakSummary } from "@/lib/api";
 
 export const metadata: Metadata = {
@@ -16,7 +18,7 @@ const features = [
   {
     icon: FileSpreadsheet,
     title: "Weekly case intelligence",
-    desc: "Confirmed dengue by RDHS, week by week — with national and district summaries from records already in the system.",
+    desc: "Confirmed dengue by RDHS, week by week, with national and district summaries from records already in the system.",
   },
   {
     icon: Brain,
@@ -35,31 +37,12 @@ export default async function LandingPage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
-      >
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute -top-40 right-[-8rem] h-[28rem] w-[28rem] rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute top-[28rem] -left-32 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
       </div>
 
-      <header className="sticky top-0 z-20 border-b border-border/70 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Activity className="h-4 w-4" />
-            </div>
-            DengueSense <span className="text-primary">LK</span>
-          </Link>
-
-          <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <ThemeToggle />
-            <Button size="sm" asChild>
-              <Link href="/login">Sign in</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader active="home" />
 
       <main>
         <section className="mx-auto max-w-6xl px-4 pb-12 pt-16 sm:px-6 sm:pb-16 sm:pt-24">
@@ -74,19 +57,28 @@ export default async function LandingPage() {
             </h1>
             <p className="mt-5 text-pretty text-base text-muted-foreground sm:text-lg">
               A quiet workspace for weekly cases and four-week outbreak
-              forecasts — built for public health teams in Sri Lanka.
+              forecasts, built for public health teams in Sri Lanka.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button size="lg" className="gap-2" asChild>
+            <div className="mt-8 flex w-full flex-col items-stretch justify-center gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <Button size="lg" className="h-11 gap-2 sm:h-10" asChild>
                 <Link href="/login">
                   Enter the portal
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
+              <Button size="lg" variant="outline" className="h-11 sm:h-10" asChild>
                 <Link href="/register">Request access</Link>
               </Button>
             </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Neighbour with a phone?{" "}
+              <Link
+                href="/app"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                Get the citizen app
+              </Link>
+            </p>
           </div>
         </section>
 
@@ -110,19 +102,11 @@ export default async function LandingPage() {
             ))}
           </div>
         </section>
+
+        <HomeAppTeaser />
       </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:px-6">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" />
-            Ministry of Health, DengueSense LK
-          </div>
-          <span suppressHydrationWarning>
-            © {new Date().getFullYear()} All rights reserved.
-          </span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
